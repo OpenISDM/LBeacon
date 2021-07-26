@@ -202,9 +202,11 @@ ErrorCode get_config(Config *config, char *file_name) {
     char *save_current_ptr = NULL;
     int number_mac_prefix = 0;
     int number_device_name_prefix = 0;
+    int number_manufacture_data_prefix = 0;
     int i;
     struct PrefixRule *mac_prefix_node;
     struct DeviceNamePrefix *device_name_node;
+    struct DeviceManufactureDataPrefix *manufacture_data_node;
     struct List_Entry *current_list_entry;
     char single_prefix[CONFIG_BUFFER_SIZE];
     char *prefix_current_ptr = NULL;
@@ -347,7 +349,7 @@ ErrorCode get_config(Config *config, char *file_name) {
     memset(temp_buf, 0, sizeof(temp_buf));
     memcpy(temp_buf, config_message, strlen(config_message));
 
-    /* construct the list of acceptable mac prefixes*/
+    /* construct the list of acceptable device name prefixes*/
     init_entry(&config->device_name_prefix_list_head);
 
     current_ptr = strtok_save(temp_buf, DELIMITER_COMMA, &save_current_ptr);
@@ -410,16 +412,94 @@ ErrorCode get_config(Config *config, char *file_name) {
     
     /* item 16 */
     fetch_next_string(file, config_message, sizeof(config_message)); 
+    memset(temp_buf, 0, sizeof(temp_buf));
+    memcpy(temp_buf, config_message, strlen(config_message));
+
+    /* construct the list of acceptable device manufacture data prefixes*/
+    init_entry(&config->device_manufacture_data_prefix_list_head);
+
+    current_ptr = strtok_save(temp_buf, DELIMITER_COMMA, &save_current_ptr);
+    sscanf(current_ptr, "%d", &number_manufacture_data_prefix);
+
+    for(i = 0; i < number_manufacture_data_prefix ; i++){
+        current_ptr = strtok_save(NULL, DELIMITER_COMMA, &save_current_ptr);
+        manufacture_data_node = malloc(sizeof(DeviceManufactureDataPrefix));
+
+        init_entry(&manufacture_data_node->list_entry);
+        
+        memset(manufacture_data_node->prefix, 
+               0, 
+               sizeof(manufacture_data_node->prefix));
+        
+        /* 
+        memset(manufacture_data_node->identifier, 
+               0, 
+               sizeof(manufacture_data_node->identifier));
+        */
+        
+        memset(single_prefix, 0, sizeof(single_prefix));
+        strncpy(single_prefix, current_ptr, strlen(current_ptr));
+
+        prefix_current_ptr = strtok_save(single_prefix, 
+                                         DELIMITER_SEMICOLON, 
+                                         &prefix_save_current_ptr);
+                                         
+        strncpy(manufacture_data_node->prefix, 
+                prefix_current_ptr, 
+                strlen(prefix_current_ptr));
+
+/*
+        prefix_current_ptr = strtok_save(NULL, 
+                                         DELIMITER_SEMICOLON, 
+                                         &prefix_save_current_ptr);
+                                         
+        strncpy(device_name_node->identifier, 
+                prefix_current_ptr, 
+                strlen(prefix_current_ptr));
+*/
+ 
+        prefix_current_ptr = strtok_save(NULL, 
+                                         DELIMITER_SEMICOLON, 
+                                         &prefix_save_current_ptr);
+
+        manufacture_data_node->is_payload_needed = 
+            atoi(prefix_current_ptr);
+        
+        prefix_current_ptr = strtok_save(NULL, 
+                                         DELIMITER_SEMICOLON, 
+                                         &prefix_save_current_ptr);
+
+        manufacture_data_node->is_scan_rsp_needed = 
+            atoi(prefix_current_ptr);
+        
+        insert_list_tail(&manufacture_data_node->list_entry,
+                         &config->device_manufacture_data_prefix_list_head);
+    }
+
+    list_for_each(current_list_entry, &config->device_manufacture_data_prefix_list_head){
+        manufacture_data_node = ListEntry(current_list_entry, 
+                                          DeviceManufactureDataPrefix,
+                                          list_entry);
+        zlog_debug(category_debug, 
+                   "manufacture data with prefix [%s], payload[%d], scan_rsp[%d]",
+                   manufacture_data_node->prefix, 
+                   manufacture_data_node->is_payload_needed,
+                   manufacture_data_node->is_scan_rsp_needed
+                   );
+    }
+   
+    /* item 17 */
+    fetch_next_string(file, config_message, sizeof(config_message)); 
     memset(config->gateway_addr, 0, sizeof(config->gateway_addr));
     memcpy(config->gateway_addr, config_message, strlen(config_message));
 
-    /* item 17 */
+    /* item 18 */
     fetch_next_string(file, config_message, sizeof(config_message)); 
     config->gateway_port = atoi(config_message);
 
     memset(g_config.local_addr, 0, sizeof(g_config.local_addr));
 
-    /* item 18 */
+    /* item 19 */
     fetch_next_string(file, config_message, sizeof(config_message)); 
     config->local_client_port = atoi(config_message);
 
@@ -441,6 +521,7 @@ void send_to_push_dongle(char * mac_address,
                          DeviceType device_type,
                          int rssi,
                          int is_button_pressed,
+                         int is_tag_moved,
                          int battery_voltage,
                          bool is_payload_needed,
                          bool is_scan_rsp_needed,
@@ -480,6 +561,9 @@ void send_to_push_dongle(char * mac_address,
         }
         if(is_button_pressed == 1){
             temp_node->is_button_pressed = is_button_pressed;
+        }
+        if(is_tag_moved == 1){
+            temp_node->is_tag_moved = is_tag_moved;
         }
         temp_node->battery_voltage = battery_voltage;
         /* use the strongest singal strength */
@@ -521,6 +605,7 @@ void send_to_push_dongle(char * mac_address,
     temp_node->final_scanned_time = temp_node->initial_scanned_time;
     temp_node->rssi = rssi;
     temp_node->is_button_pressed = is_button_pressed;
+    temp_node->is_tag_moved = is_tag_moved;
     temp_node->battery_voltage = battery_voltage;
     memset(temp_node->payload, 0, sizeof(temp_node->payload));
     
@@ -1731,12 +1816,13 @@ ErrorCode consolidate_tracked_data(ObjectListHead *list,
        
         // note, when you change this part, please also update
         // MAX_LENGTH_RESP_DEVICE_INFO in LBeacon.h 
-        sprintf(response_buf, "%s;%d;%d;%d;%d;%d;%s%s;",
+        sprintf(response_buf, "%s;%d;%d;%d;%d;%d;%d;%s%s;",
                 temp->scanned_mac_address,
                 temp->initial_scanned_time,
                 temp->final_scanned_time,
                 temp->rssi,
                 temp->is_button_pressed,
+                temp->is_tag_moved,
                 temp->battery_voltage,
                 hex_payload,
                 hex_scan_rsp);
@@ -1860,7 +1946,8 @@ static ErrorCode eir_parse_specific_data(uint8_t *eir,
 
                 // BiDaE tags
                 if(field_len == BLE_PAYLOAD_FORMAT_05C6_0XFF_FIELD_LEN || 
-                   field_len == BLE_PAYLOAD_FORMAT_05C7_0XFF_FIELD_LEN){
+                   field_len == BLE_PAYLOAD_FORMAT_05C7_0XFF_FIELD_LEN || 
+                   field_len == BLE_PAYLOAD_FORMAT_IBEACON_MODE_0XFF_FIELD_LEN){
                    
                     memset(buf, 0, buf_len);
 
@@ -1918,10 +2005,12 @@ ErrorCode *examine_scanned_ble_device(void *param){
     struct TempBleDevice *temp;
     bool is_empty_list;
     int is_button_pressed;
+    int is_tag_moved; 
     int battery_voltage;
     struct List_Entry *current_list_entry;
     struct PrefixRule *mac_prefix_node;
     struct DeviceNamePrefix *device_name_node;
+    struct DeviceManufactureDataPrefix *manufacture_data_node;
     char payload[LENGTH_OF_ADVERTISEMENT];
     bool is_matched = false;
     bool is_payload_needed = false;
@@ -1979,6 +2068,7 @@ ErrorCode *examine_scanned_ble_device(void *param){
                EVENT_TYPE_ADV_NONCONN_IND == temp->evt_type){
                 
                 is_button_pressed = 0;
+                is_tag_moved = 0;
                 battery_voltage = 0;
                 is_matched = false;
             
@@ -2015,6 +2105,7 @@ ErrorCode *examine_scanned_ble_device(void *param){
                                                 BLE,
                                                 temp->rssi,
                                                 is_button_pressed,
+                                                is_tag_moved,
                                                 battery_voltage,
                                                 is_payload_needed,
                                                 is_scan_rsp_needed,
@@ -2068,6 +2159,7 @@ ErrorCode *examine_scanned_ble_device(void *param){
                                                             BLE,
                                                             temp->rssi,
                                                             is_button_pressed,
+                                                            is_tag_moved,
                                                             battery_voltage,
                                                             is_payload_needed,
                                                             is_scan_rsp_needed,
@@ -2125,6 +2217,7 @@ ErrorCode *examine_scanned_ble_device(void *param){
                                                         BLE,
                                                         temp->rssi,
                                                         is_button_pressed,
+                                                        is_tag_moved,
                                                         battery_voltage,
                                                         device_name_node->is_payload_needed,
                                                         device_name_node->is_scan_rsp_needed,
@@ -2149,6 +2242,7 @@ ErrorCode *examine_scanned_ble_device(void *param){
                                                         strlen(device_name_node->identifier))){
              
                                             // parse payload as the tag identifier specified
+                                            /*
                                             if(0 == strncmp(device_name_node->identifier,
                                                             BIDAETECH_TAG_IDENTIFIER_05C7,
                                                             strlen(BIDAETECH_TAG_IDENTIFIER_05C7))){ 
@@ -2171,12 +2265,14 @@ ErrorCode *examine_scanned_ble_device(void *param){
                                                                     BLE,
                                                                     temp->rssi,
                                                                     is_button_pressed,
+                                                                    is_tag_moved,
                                                                     battery_voltage,
                                                                     device_name_node->is_payload_needed,
                                                                     device_name_node->is_scan_rsp_needed,
                                                                     temp->payload,
                                                                     temp->payload_length);                                                       
-                                            }else if(0 == strncmp(device_name_node->identifier,
+                                            }else */
+                                            if(0 == strncmp(device_name_node->identifier,
                                                                   BIDAETECH_TAG_IDENTIFIER_4153,
                                                                   strlen(BIDAETECH_TAG_IDENTIFIER_4153))){                                       
                                                               
@@ -2198,6 +2294,7 @@ ErrorCode *examine_scanned_ble_device(void *param){
                                                                     BLE,
                                                                     temp->rssi,
                                                                     is_button_pressed,
+                                                                    is_tag_moved,
                                                                     battery_voltage,
                                                                     device_name_node->is_payload_needed,
                                                                     device_name_node->is_scan_rsp_needed,
@@ -2211,7 +2308,81 @@ ErrorCode *examine_scanned_ble_device(void *param){
                             } // if
                         } // list for each                   
                     }
-                }                    
+                }    
+
+                if(is_matched == false){
+                    // check manufacture data EIR_MANUFACTURE_SPECIFIC_DATA
+
+                    memset(payload, 0, sizeof(payload));
+              
+                    if(WORK_SUCCESSFULLY ==
+                           eir_parse_specific_data(temp->payload,
+                                                   temp->payload_length,
+                                                   EIR_MANUFACTURE_SPECIFIC_DATA,
+                                                   payload,
+                                                   sizeof(payload))){
+                        /*
+                        printf("\n\n\ncheck payload = [%s]\n",
+                               payload);
+                        */
+                        
+                        list_for_each(current_list_entry,
+                                      &g_config.device_manufacture_data_prefix_list_head){
+                              
+                            manufacture_data_node = ListEntry(current_list_entry,
+                                                              DeviceManufactureDataPrefix,
+                                                              list_entry); 
+                            /*              
+                            printf("prefix = [%s]\n", manufacture_data_node->prefix);              
+                            */
+                            
+                            // check 0xFF matches one of manufacture data prefixes
+                            if(0 == strncmp(&payload[0],
+                                            manufacture_data_node->prefix, 
+                                            strlen(manufacture_data_node->prefix))){
+                                                              
+                                is_matched = true;
+                                            
+                                is_button_pressed = 0;
+                                
+                                // get the remaining battery voltage
+                                
+                                /*
+                                battery_voltage = 
+                                    hex_to_decimal(payload[BLE_PAYLOAD_FORMAT_05C6_INDEX_OF_VOLTAGE]) * 16 +
+                                    hex_to_decimal(payload[BLE_PAYLOAD_FORMAT_05C6_INDEX_OF_VOLTAGE + 1]); 
+                                */                                
+                                is_tag_moved = 
+                                    hex_to_decimal(payload[BLE_PAYLOAD_FORMAT_IBEACON_MODE_INDEX_OF_MOTION_SENSOR]) * 16 +
+                                    hex_to_decimal(payload[BLE_PAYLOAD_FORMAT_IBEACON_MODE_INDEX_OF_MOTION_SENSOR + 1]); 
+                                
+                            
+                                zlog_debug(category_debug,
+                                           "Detected iBeacon mode [LE]: %s - " \
+                                           "RSSI %4d, pushed=[%d], moved=[%d], voltage=[%d]",
+                                           temp->scanned_mac_address,
+                                           temp->rssi,
+                                           is_button_pressed,
+                                           is_tag_moved,
+                                           battery_voltage);
+                                              
+                                send_to_push_dongle(temp->scanned_mac_address,
+                                                    BLE,
+                                                    temp->rssi,
+                                                    is_button_pressed,
+                                                    is_tag_moved,
+                                                    battery_voltage,
+                                                    manufacture_data_node->is_payload_needed,
+                                                    manufacture_data_node->is_scan_rsp_needed,
+                                                    temp->payload,
+                                                    temp->payload_length);
+                                                    
+                                break;
+                            } // if
+                        } // list for each                   
+                    }
+                } 
+                
             }// if evt_type == EVENT_TYPE_ADV_IND or EVENT_TYPE_ADV_NONCONN_ADV
             else if(EVENT_TYPE_SCAN_RSP == temp->evt_type){
                 send_to_push_dongle_scan_rsp(temp->scanned_mac_address,
@@ -2460,6 +2631,7 @@ ErrorCode *start_br_scanning(void* param) {
     bool keep_scanning;
     int rssi;
     int is_button_pressed = 0;
+    int is_tag_moved = 0;
     int battery_voltage = 0;
     char address[LENGTH_OF_MAC_ADDRESS];
     bool is_payload_needed = false;
@@ -2627,6 +2799,7 @@ ErrorCode *start_br_scanning(void* param) {
                                                 BR_EDR,
                                                 info_rssi->rssi,
                                                 is_button_pressed,
+                                                is_tag_moved,
                                                 battery_voltage,
                                                 is_payload_needed,
                                                 is_scan_rsp_needed,

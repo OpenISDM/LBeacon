@@ -95,7 +95,9 @@
 
 #define BOT_GATEWAY_API_VERSION_12 "1.2"
 
-#define BOT_GATEWAY_API_VERSION_LATEST "1.3"
+#define BOT_GATEWAY_API_VERSION_13 "1.3"
+
+#define BOT_GATEWAY_API_VERSION_LATEST "1.4"
 
 /* Agent API protocol version for gateway to deploy commands to agent. */
 

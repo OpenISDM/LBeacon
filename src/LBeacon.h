@@ -223,6 +223,13 @@ to gateway via wifi network link.*/
 /* The index of panic in BLE payload format with identifer 4153 */
 #define BLE_PAYLOAD_FORMAT_4153_INDEX_OF_PANIC 13
 
+/* The length of 0xFF field in BLE payload format with 
+iBEACON mode (April Brother motion sensor) */
+#define BLE_PAYLOAD_FORMAT_IBEACON_MODE_0XFF_FIELD_LEN 26 
+
+/* The index of motion sensor information in BLE payload format with 
+iBEACON mode (April Brother motion sensor) */
+#define BLE_PAYLOAD_FORMAT_IBEACON_MODE_INDEX_OF_MOTION_SENSOR 20
 
 /* The macro of comparing two integer for minimum */
 #define min(a,b) \
@@ -286,6 +293,9 @@ typedef struct Config {
     
     /* The list of all acceptable device name prefixes */
     struct List_Entry device_name_prefix_list_head;
+    
+    /* The list of all acceptable device manufacture data prefixes */
+    struct List_Entry device_manufacture_data_prefix_list_head;
 
     /* The IPv4 network address of the gateway */
     char gateway_addr[NETWORK_ADDR_LENGTH];
@@ -352,6 +362,7 @@ typedef struct ScannedDevice {
     int final_scanned_time;
     int rssi;
     int is_button_pressed;
+    int is_tag_moved;
     int battery_voltage;
     uint8_t payload[LENGTH_OF_ADVERTISEMENT];
     size_t payload_length;
@@ -408,6 +419,17 @@ typedef struct DeviceNamePrefix{
     struct List_Entry list_entry;
 
 } DeviceNamePrefix;
+
+
+typedef struct DeviceManufactureDataPrefix{
+
+    char prefix[LENGTH_OF_ADVERTISEMENT];
+    // char identifier[LENGTH_OF_ADVERTISEMENT];
+    bool is_payload_needed;
+    bool is_scan_rsp_needed;
+    struct List_Entry list_entry;
+
+} DeviceManufactureDataPrefix;
 
 
 /*
@@ -591,6 +613,7 @@ ErrorCode get_config(Config *config, char *file_name);
       device_type - the indicator to show the device type of the input address
       rssi - the RSSI value of this device
       is_button_pressed - the push_button is pressed
+      is_tag_moved - the tag is moved (detected by motion sensor)
       battery_voltage - the remaining battery voltage
       is_payload_needed - flag indicating whether this device need to upload 
                           ble adv (ADV_IND, ADV_NONCONN_IND) payload
@@ -608,6 +631,7 @@ void send_to_push_dongle(char * mac_address,
                          DeviceType device_type,
                          int rssi,
                          int is_button_pressed,
+                         int is_tag_moved,
                          int battery_voltage,
                          bool is_payload_needed,
                          bool is_scan_rsp_needed,
