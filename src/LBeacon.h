@@ -103,6 +103,9 @@ https://www.bluetooth.com/specifications/assigned-numbers/generic-access-profile
 /* BlueZ bluetooth extended inquiry response protocol: complete local name */
 #define EIR_NAME_COMPLETE 0x09
 
+/* BlueZ bluetooth extended inquiry response protocol: Service Data */
+#define EIR_SERVICE_DATA 0x16
+
 /* BlueZ bluetooth extended inquiry response protocol: Manufacturer Specific
    Data */
 #define EIR_MANUFACTURE_SPECIFIC_DATA 0xFF
@@ -223,13 +226,31 @@ to gateway via wifi network link.*/
 /* The index of panic in BLE payload format with identifer 4153 */
 #define BLE_PAYLOAD_FORMAT_4153_INDEX_OF_PANIC 13
 
+// AprilBrother ABSensorN01: advertising in iBeacon mode (UUID1/UUID2)
 /* The length of 0xFF field in BLE payload format with 
-iBEACON mode (April Brother motion sensor) */
+iBEACON mode (April Brother ABSensorN01). Please note the legnth is in decimal */
 #define BLE_PAYLOAD_FORMAT_IBEACON_MODE_0XFF_FIELD_LEN 26 
 
-/* The index of motion sensor information in BLE payload format with 
-iBEACON mode (April Brother motion sensor) */
-#define BLE_PAYLOAD_FORMAT_IBEACON_MODE_INDEX_OF_MOTION_SENSOR 20
+/* The index of still/moving information in the 0xFF field of BLE payload 
+format with iBEACON mode */
+#define BLE_PAYLOAD_FORMAT_IBEACON_MODE_INDEX_OF_MOVING_INFO_IN_0xFF_FIELD 20
+
+// AprilBrother ABSensorN01: advertising in sensor mode (service data)
+/* The length of 0x16 field in BLE payload format with sensor mode 
+(April Brother ABSensorN01). Please note the length is in decimal. */
+#define BLE_PAYLOAD_FORMAT_SENSOR_MODE_0X16_FIELD_LEN 23
+
+/* The index of still/moving information in the 0x16 field of BLE payload 
+format with sensor mode */
+#define BLE_PAYLOAD_FORMAT_SENSOR_MODE_INDEX_OF_MOVING_INFO_IN_0x16_FIELD 30
+
+/* The index of battery percentage information in the 0x16 field of BLE payload 
+format with sensor mode */
+#define BLE_PAYLOAD_FORMAT_SENSOR_MODE_INDEX_OF_BATTERY_VOLTAGE_IN_0x16_FIELD 42
+
+/* The index of button status information in the 0x16 field of BLE payload 
+format with sensor mode */
+#define BLE_PAYLOAD_FORMAT_SENSOR_MODE_INDEX_OF_BUTTON_SATUS_IN_0x16_FIELD 46
 
 /* The macro of comparing two integer for minimum */
 #define min(a,b) \
@@ -296,6 +317,9 @@ typedef struct Config {
     
     /* The list of all acceptable device manufacture data prefixes */
     struct List_Entry device_manufacture_data_prefix_list_head;
+    
+    /* The list of all acceptable device service data prefixes */
+    struct List_Entry device_service_data_prefix_list_head;
 
     /* The IPv4 network address of the gateway */
     char gateway_addr[NETWORK_ADDR_LENGTH];
@@ -364,6 +388,7 @@ typedef struct ScannedDevice {
     int is_button_pressed;
     int is_tag_moved;
     int battery_voltage;
+    int battery_percentage;
     uint8_t payload[LENGTH_OF_ADVERTISEMENT];
     size_t payload_length;
     bool is_payload_needed;
@@ -424,13 +449,22 @@ typedef struct DeviceNamePrefix{
 typedef struct DeviceManufactureDataPrefix{
 
     char prefix[LENGTH_OF_ADVERTISEMENT];
-    // char identifier[LENGTH_OF_ADVERTISEMENT];
+   
     bool is_payload_needed;
     bool is_scan_rsp_needed;
     struct List_Entry list_entry;
 
 } DeviceManufactureDataPrefix;
 
+typedef struct ServiceDataPrefix{
+
+    char prefix[LENGTH_OF_ADVERTISEMENT];
+   
+    bool is_payload_needed;
+    bool is_scan_rsp_needed;
+    struct List_Entry list_entry;
+
+} ServiceDataPrefix;
 
 /*
   EXTERN STRUCTS
@@ -614,7 +648,8 @@ ErrorCode get_config(Config *config, char *file_name);
       rssi - the RSSI value of this device
       is_button_pressed - the push_button is pressed
       is_tag_moved - the tag is moved (detected by motion sensor)
-      battery_voltage - the remaining battery voltage
+      battery_voltage - the remaining battery voltage in voltage * 10 format, like (24..30) means (2.4V to 3.0V)
+      battery_percentage - the remainding battery percentage in (0..100)% format
       is_payload_needed - flag indicating whether this device need to upload 
                           ble adv (ADV_IND, ADV_NONCONN_IND) payload
       is_scan_rsp_needed - flag indicating whether this device need to upload 
@@ -633,6 +668,7 @@ void send_to_push_dongle(char * mac_address,
                          int is_button_pressed,
                          int is_tag_moved,
                          int battery_voltage,
+                         int battery_percentage,
                          bool is_payload_needed,
                          bool is_scan_rsp_needed,
                          uint8_t *payload,
