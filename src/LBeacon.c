@@ -2456,7 +2456,7 @@ ErrorCode *examine_scanned_ble_device(void *param){
                                                    sizeof(payload))){
                         
                         //printf("\n\n\ncheck payload = [%s]\n",
-                               payload);
+                        //       payload);
                         
                         
                         list_for_each(current_list_entry,
