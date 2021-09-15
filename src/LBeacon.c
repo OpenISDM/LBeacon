@@ -2443,7 +2443,7 @@ ErrorCode *examine_scanned_ble_device(void *param){
                         } // list for each                   
                     }
                 }    
-
+/*
                 if(is_matched == false){
                     // check manufacture data EIR_MANUFACTURE_SPECIFIC_DATA
                     memset(payload, 0, sizeof(payload));
@@ -2454,10 +2454,10 @@ ErrorCode *examine_scanned_ble_device(void *param){
                                                    EIR_MANUFACTURE_SPECIFIC_DATA,
                                                    payload,
                                                    sizeof(payload))){
-                        /*
-                        printf("\n\n\ncheck payload = [%s]\n",
+                        
+                        //printf("\n\n\ncheck payload = [%s]\n",
                                payload);
-                        */
+                        
                         
                         list_for_each(current_list_entry,
                                       &g_config.device_manufacture_data_prefix_list_head){
@@ -2465,9 +2465,8 @@ ErrorCode *examine_scanned_ble_device(void *param){
                             manufacture_data_node = ListEntry(current_list_entry,
                                                               DeviceManufactureDataPrefix,
                                                               list_entry); 
-                            /*              
-                            printf("prefix = [%s]\n", manufacture_data_node->prefix);              
-                            */
+                                         
+                            //printf("prefix = [%s]\n", manufacture_data_node->prefix);              
                             
                             // check 0xFF matches one of manufacture data prefixes
                             if(0 == strncmp(&payload[0],
@@ -2481,9 +2480,9 @@ ErrorCode *examine_scanned_ble_device(void *param){
                                 // get the remaining battery voltage
                                 
                                 battery_voltage = 0;
-                                /*  hex_to_decimal(payload[BLE_PAYLOAD_FORMAT_05C6_INDEX_OF_VOLTAGE]) * 16 +
-                                    hex_to_decimal(payload[BLE_PAYLOAD_FORMAT_05C6_INDEX_OF_VOLTAGE + 1]); 
-                                */                                
+                                //  hex_to_decimal(payload[BLE_PAYLOAD_FORMAT_05C6_INDEX_OF_VOLTAGE]) * 16 +
+                                //    hex_to_decimal(payload[BLE_PAYLOAD_FORMAT_05C6_INDEX_OF_VOLTAGE + 1]); 
+                                                                
                                 battery_percentage = 0;
                                 
                                 
@@ -2518,7 +2517,7 @@ ErrorCode *examine_scanned_ble_device(void *param){
                             } // if
                         } // list for each                   
                     }
-                } 
+                } */
                 
                 if(is_matched == false){
                     // check service data EIR_SERVICE_DATA
